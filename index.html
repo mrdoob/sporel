@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<title>Sporel</title>
+		<style>
+			html {
+				height: 100%;
+			}
+			body {
+				width: 100%;
+				height: 100%;
+
+				margin: 0;
+				padding: 0;
+
+				color: #fff;
+
+				font-size: 24px;
+				font-family: Serif;
+				font-style: italic;
+
+				background-color: #000;
+
+				overflow: hidden;
+
+				/* Internet Explorer 10 */
+				display: -ms-flexbox;
+				-ms-flex-pack: center;
+				-ms-flex-align: center;
+
+				/* Firefox */
+				display: -moz-box;
+				-moz-box-pack: center;
+				-moz-box-align: center;
+				-moz-user-select: none;
+
+				/* Safari, Opera, and Chrome */
+				display: -webkit-box;
+				-webkit-box-pack: center;
+				-webkit-box-align: center;
+				-webkit-user-select: none;
+
+				/* W3C */
+				display: box;
+				box-pack: center;
+				box-align: center;
+				user-select: none;
+
+			}				
+			a {
+				color: #00ff22;
+			}
+			hr {
+				border-color: #333;
+				margin: 20px 0px;
+			}
+			#info {
+				text-align: center;
+			}	
+		</style>
+	</head>
+	<body>
+
+		<script src="three.min.js"></script>
+		<script src="FBOUtils.js"></script>
+
+		<script src="Audio.js"></script>
+
+		<script id="vs-simulation" type="x-shader/x-vertex">
+				
+			varying vec2 vUv;
+
+			void main() {
+
+				vUv = vec2(uv.x, 1.0 - uv.y);
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+
+			}
+
+		</script>
+		<script id="fs-simulation" type="x-shader/x-fragment">
+							
+			uniform float opacity;
+
+			uniform sampler2D tPositions;
+			uniform sampler2D tOrigins;
+			
+			uniform float timer;
+
+			// simulation
+			varying vec2 vUv;
+
+			float rand(vec2 co){
+			    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+			}
+		
+			void main() {
+
+				vec4 pos = texture2D( tPositions, vUv );
+
+				if ( rand( vUv + timer ) > 0.99 || pos.w <= 0.0 ) {
+
+					pos.xyz = texture2D( tOrigins, vUv ).xyz;
+					pos.w = opacity;
+
+				} else {
+
+					if ( pos.w <= 0.0 ) discard;
+
+					float x = pos.x + timer * 5.0;
+					float y = pos.y;
+					float z = pos.z + timer * 4.0;
+
+					pos.x += sin( y * 0.033 ) * cos( z * 0.037 ) * 0.4;
+					pos.y += sin( x * 0.035 ) * cos( x * 0.035 ) * 0.4;
+					pos.z += sin( x * 0.037 ) * cos( y * 0.033 ) * 0.4;
+					pos.w -= 0.00001;
+
+				}
+
+				gl_FragColor = pos;	// write new position
+
+			}
+
+
+		</script>
+
+		<!-- zz85 - end simulations -->
+
+		<script id="vs-particles" type="x-shader/x-vertex">
+
+			uniform sampler2D map;
+
+			uniform float width;
+			uniform float height;
+
+			varying vec2 vUv;
+			varying vec3 vPosition;
+			varying float opacity;
+
+			void main() {
+
+				vec2 uv = position.xy + vec2( 0.5 / width, 0.5 / height );
+
+				vec4 data = texture2D( map, uv );
+
+				vPosition = data.xyz;
+				opacity = data.w;
+
+				gl_PointSize = 1.0; // data.w * 10.0 + 1.0;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
+
+			}
+
+		</script>
+
+		<script id="fs-particles" type="x-shader/x-fragment">
+
+			uniform vec3 pointColor;
+
+			varying vec3 vPosition;
+			varying float opacity;
+
+			void main() {
+
+				if ( opacity <= 0.0 ) discard;
+				gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
+
+			}
+
+		</script>
+
+		<script>
+
+			var audio;
+
+			var scene, camera, renderer;
+			var particleMaterial;
+
+			var fboParticles, rtTexturePos, rtTexturePos2, simulationShader;
+
+			function init() {
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.domElement.style.display = 'none';
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+
+				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 5000 );
+				camera.position.z = 500;
+
+				scene = new THREE.Scene();
+
+				//
+
+				var width = 1024, height = 1024;
+
+				var data = new Float32Array( width * height * 4 );
+				var positionsTexture = new THREE.DataTexture( data, width, height, THREE.RGBAFormat, THREE.FloatType );
+				positionsTexture.minFilter = THREE.NearestFilter;
+				positionsTexture.magFilter = THREE.NearestFilter;
+				positionsTexture.generateMipmaps = false;
+				positionsTexture.needsUpdate = true;
+
+				var geometry = new THREE.IcosahedronGeometry( 150, 1 );
+
+				/*
+				var material = new THREE.MeshBasicMaterial( {
+					color: 0x00ff00,
+					opacity: 0.1,
+					blending: THREE.AdditiveBlending,
+					wireframe: true,
+					transparent: true
+				} );
+				*/
+
+				var material = new THREE.MeshBasicMaterial( {
+					color: 0x000000
+				} );
+
+				var mesh = new THREE.Mesh( geometry, material );
+				scene.add( mesh );
+
+				var data = new Float32Array( width * height * 3 );
+
+				//
+
+				/*
+				var points = THREE.GeometryUtils.randomPointsInGeometry( geometry, data.length / 3 );
+
+				for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
+
+					data[ i ] = points[ j ].x;
+					data[ i + 1 ] = points[ j ].y;
+					data[ i + 2 ] = points[ j ].z;
+
+				}
+				*/
+
+				var point = new THREE.Vector3();
+				var facesLength = geometry.faces.length;
+
+				/*
+
+				for ( var i = 0, l = data.length; i < l; i += 3 ) {
+
+					var point = geometry.vertices[ Math.floor( Math.random() * geometry.vertices.length ) ];
+
+					data[ i ] = point.x;
+					data[ i + 1 ] = point.y;
+					data[ i + 2 ] = point.z;
+
+				}
+				*/
+
+				for ( var i = 0, l = data.length; i < l; i += 3 ) {
+
+					var face = geometry.faces[ Math.floor( Math.random() * facesLength ) ];
+
+					var vertex1 = geometry.vertices[ face.a ];
+					var vertex2 = geometry.vertices[ Math.random() > 0.5 ? face.b : face.c ];
+
+					point.subVectors( vertex2, vertex1 );
+					point.multiplyScalar( Math.random() );
+					point.add( vertex1 );
+
+					data[ i ] = point.x;
+					data[ i + 1 ] = point.y;
+					data[ i + 2 ] = point.z;
+
+				}
+
+				var originsTexture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
+				originsTexture.minFilter = THREE.NearestFilter;
+				originsTexture.magFilter = THREE.NearestFilter;
+				originsTexture.generateMipmaps = false;
+				originsTexture.needsUpdate = true;
+
+				// zz85 - fbo init
+
+				rtTexturePos = new THREE.WebGLRenderTarget( width, height, {
+					minFilter: THREE.NearestFilter,
+					magFilter: THREE.NearestFilter,
+					format: THREE.RGBAFormat,
+					type:THREE.FloatType,
+					stencilBuffer: false
+				});
+
+				rtTexturePos2 = rtTexturePos.clone();
+
+				simulationShader = new THREE.ShaderMaterial({
+
+					uniforms: {
+						tPositions: { type: "t", value: positionsTexture },
+						tOrigins: { type: "t", value: originsTexture },
+						opacity: { type: "f", value: 0 },
+						timer: { type: "f", value: 0 }
+					},
+
+					vertexShader: document.getElementById('vs-simulation').textContent,
+					fragmentShader:  document.getElementById('fs-simulation').textContent
+
+				});
+
+				fboParticles = new THREE.FBOUtils( width, renderer, simulationShader );
+				fboParticles.renderToTexture( rtTexturePos, rtTexturePos2 );
+
+				fboParticles.in = rtTexturePos;
+				fboParticles.out = rtTexturePos2;
+
+				var  geometry = new THREE.Geometry();
+
+				for ( var i = 0, l = width * height; i < l; i ++ ) {
+
+					var vertex = new THREE.Vector3();
+					vertex.x = ( i % width ) / width ;
+					vertex.y = Math.floor( i / width ) / height;
+					geometry.vertices.push( vertex );
+
+				}
+
+				particleMaterial = new THREE.ShaderMaterial( {
+
+					uniforms: {
+
+						"map": { type: "t", value: rtTexturePos },
+						"width": { type: "f", value: width },
+						"height": { type: "f", value: height },
+
+						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
+
+					},
+					vertexShader: document.getElementById( 'vs-particles' ).textContent,
+					fragmentShader: document.getElementById( 'fs-particles' ).textContent,
+					blending: THREE.AdditiveBlending,
+					depthWrite: false,
+					// depthTest: false,
+					transparent: true
+
+				} );
+
+				var mesh = new THREE.ParticleSystem( geometry, particleMaterial );
+				scene.add( mesh );
+
+				/*
+				var mesh = new THREE.Mesh(
+					new THREE.CubeGeometry( 500, 500, 500 ),
+					new THREE.MeshBasicMaterial( { color: 0xffffff, wireframe: true, opacity: 0.1, transparent: true } )
+				);
+				scene.add( mesh );
+				*/
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+				//
+
+				audio = new Audio( 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg' );
+				audio.mark = 75;
+				audio.onLoad( function () {
+
+					loading.style.display = 'none';
+					renderer.domElement.style.display = '';
+
+					animate();
+
+				} );
+				// document.body.appendChild( audio.getCanvas() );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+				render();
+
+			}
+
+			function render() {
+
+				audio.update();
+
+				var timer = audio.getCurrentTime();
+
+				var k = timer / 360;
+
+				var easing = 1 - Math.pow( 2, - 10 * k );
+				var distance = 4000 * easing - 4350;
+
+				camera.position.x = - Math.cos( timer * 0.1 ) * distance;
+				camera.position.z = Math.sin( timer * 0.1 ) * distance;
+				camera.lookAt( scene.position );
+
+				simulationShader.uniforms.timer.value = timer;
+				simulationShader.uniforms.opacity.value = Math.pow( audio.getFrequency()[ 4 ] / 768, 2 );
+
+				if ( audio.getFrequency()[ 30 ] > 64 ) {
+
+					simulationShader.uniforms.opacity.value *= 2;
+
+				}
+
+				particleMaterial.uniforms.pointColor.value.x = audio.getFrequency()[ 30 ] / 256;
+
+				if ( audio.getFrequency()[ 73 ] > 16 ) {
+
+					simulationShader.uniforms.opacity.value *= 6;
+
+				}
+
+				// swap
+				var tmp = fboParticles.in;
+				fboParticles.in = fboParticles.out;
+				fboParticles.out = tmp;
+
+				simulationShader.uniforms.tPositions.value = fboParticles.in;
+				fboParticles.simulate( fboParticles.out );
+
+				particleMaterial.uniforms.map.value = fboParticles.out;
+
+				renderer.render( scene, camera );
+
+			}
+
+			//
+
+			var info = document.createElement( 'div' );
+			info.id = 'info';
+			info.innerHTML = '"Sporel" by Mr.doob<br /><span style="font-size:18px">music: <a href="https://soundcloud.com/frank-bolero/sporel-mix" target="_blank">Rymdlego - Sporel (Frank Bolero Ambient mix)</a></span><hr />';
+			document.body.appendChild( info );
+
+			var start = document.createElement( 'span' );
+			start.textContent = 'START';
+			start.style.color = '#ffff22';
+			start.style.cursor = 'pointer';
+			start.style.margin = '20px';
+			start.addEventListener( 'click', function ( event ) {
+
+				info.style.display = 'none';
+				loading.style.display = '';
+
+				init();
+
+			} );
+			info.appendChild( start );
+
+			var loading = document.createElement( 'div' );
+			loading.id = 'info';
+			loading.style.display = 'none';
+			loading.innerHTML = 'Loading...';
+			document.body.appendChild( loading );
+
+		</script>
+	</body>
+</html>
