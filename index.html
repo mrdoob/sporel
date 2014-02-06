@@ -357,16 +357,17 @@
 
 				//
 
-				audio = new Audio( 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg' );
+				var player = document.createElement( 'audio' );
+				player.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
+				player.play();
+
+				audio = new Audio( player );
 				audio.mark = 75;
-				audio.onLoad( function () {
 
-					loading.style.display = 'none';
-					renderer.domElement.style.display = '';
+				renderer.domElement.style.display = '';
 
-					animate();
+				animate();
 
-				} );
 				// document.body.appendChild( audio.getCanvas() );
 
 			}
@@ -448,18 +449,10 @@
 			start.addEventListener( 'click', function ( event ) {
 
 				info.style.display = 'none';
-				loading.style.display = '';
-
-				init();
+				setTimeout( init, 100 );
 
 			} );
 			info.appendChild( start );
-
-			var loading = document.createElement( 'div' );
-			loading.id = 'info';
-			loading.style.display = 'none';
-			loading.innerHTML = 'Loading...';
-			document.body.appendChild( loading );
 
 		</script>
 	</body>
