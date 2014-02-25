@@ -1,4 +1,4 @@
-var Audio = function ( element ) {
+var AudioAnalyser = function ( element ) {
 
 	var AudioContext = window.AudioContext || window.webkitAudioContext;
 	var context = new AudioContext();
@@ -24,11 +24,6 @@ var Audio = function ( element ) {
 		getFrequency: function () {
 
 			return frequencyData;
-
-		},
-		getCurrentTime: function () {
-
-			return context.currentTime;
 
 		},
 		update: function () {

@@ -67,7 +67,7 @@
 		<script src="three.min.js"></script>
 		<script src="FBOUtils.js"></script>
 
-		<script src="Audio.js"></script>
+		<script src="AudioAnalyser.js"></script>
 
 		<script id="vs-simulation" type="x-shader/x-vertex">
 				
@@ -134,8 +134,7 @@
 
 			uniform sampler2D map;
 
-			uniform float width;
-			uniform float height;
+			uniform float size;
 
 			varying vec2 vUv;
 			varying vec3 vPosition;
@@ -143,7 +142,7 @@
 
 			void main() {
 
-				vec2 uv = position.xy + vec2( 0.5 / width, 0.5 / height );
+				vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
 
 				vec4 data = texture2D( map, uv );
 
@@ -175,7 +174,7 @@
 
 		<script>
 
-			var audio;
+			var audio, analyser;
 
 			var scene, camera, renderer;
 			var particleMaterial;
@@ -184,7 +183,7 @@
 
 			function init() {
 
-				renderer = new THREE.WebGLRenderer();
+				renderer = new THREE.WebGLRenderer( { antialias: false, stencil: false } );
 				renderer.domElement.style.display = 'none';
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				document.body.appendChild( renderer.domElement );
@@ -196,10 +195,9 @@
 
 				//
 
-				var width = 1024, height = 1024;
+				var size = 1024;
 
-				var data = new Float32Array( width * height * 4 );
-				var positionsTexture = new THREE.DataTexture( data, width, height, THREE.RGBAFormat, THREE.FloatType );
+				var positionsTexture = new THREE.DataTexture( new Float32Array( size * size * 4 ), size, size, THREE.RGBAFormat, THREE.FloatType );
 				positionsTexture.minFilter = THREE.NearestFilter;
 				positionsTexture.magFilter = THREE.NearestFilter;
 				positionsTexture.generateMipmaps = false;
@@ -224,7 +222,7 @@
 				var mesh = new THREE.Mesh( geometry, material );
 				scene.add( mesh );
 
-				var data = new Float32Array( width * height * 3 );
+				var data = new Float32Array( size * size * 3 );
 
 				//
 
@@ -273,7 +271,7 @@
 
 				}
 
-				var originsTexture = new THREE.DataTexture( data, width, height, THREE.RGBFormat, THREE.FloatType );
+				var originsTexture = new THREE.DataTexture( data, size, size, THREE.RGBFormat, THREE.FloatType );
 				originsTexture.minFilter = THREE.NearestFilter;
 				originsTexture.magFilter = THREE.NearestFilter;
 				originsTexture.generateMipmaps = false;
@@ -281,7 +279,7 @@
 
 				// zz85 - fbo init
 
-				rtTexturePos = new THREE.WebGLRenderTarget( width, height, {
+				rtTexturePos = new THREE.WebGLRenderTarget( size, size, {
 					minFilter: THREE.NearestFilter,
 					magFilter: THREE.NearestFilter,
 					format: THREE.RGBAFormat,
@@ -305,20 +303,21 @@
 
 				});
 
-				fboParticles = new THREE.FBOUtils( width, renderer, simulationShader );
+				fboParticles = new THREE.FBOUtils( size, renderer, simulationShader );
 				fboParticles.renderToTexture( rtTexturePos, rtTexturePos2 );
 
 				fboParticles.in = rtTexturePos;
 				fboParticles.out = rtTexturePos2;
 
-				var  geometry = new THREE.Geometry();
+				var geometry = new THREE.BufferGeometry();
+				geometry.addAttribute( 'position', new Float32Array( size * size * 3 ), 3 );
 
-				for ( var i = 0, l = width * height; i < l; i ++ ) {
+				var positions = geometry.getAttribute( 'position' ).array;
 
-					var vertex = new THREE.Vector3();
-					vertex.x = ( i % width ) / width ;
-					vertex.y = Math.floor( i / width ) / height;
-					geometry.vertices.push( vertex );
+				for ( var i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3 ) {
+
+					positions[ j     ] = ( i % size ) / size;
+					positions[ j + 1 ] = Math.floor( i / size ) / size;
 
 				}
 
@@ -327,8 +326,7 @@
 					uniforms: {
 
 						"map": { type: "t", value: rtTexturePos },
-						"width": { type: "f", value: width },
-						"height": { type: "f", value: height },
+						"size": { type: "f", value: size },
 
 						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
 
@@ -357,18 +355,44 @@
 
 				//
 
-				var player = document.createElement( 'audio' );
-				player.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
-				player.play();
+				audio = document.createElement( 'audio' );
+				audio.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
+				audio.controls = true;
+				audio.style.position = 'absolute';
+				audio.style.left = 'calc(50% - 150px)';
+				audio.style.bottom = '25px';
+				audio.style.display = 'none';
+				audio.style.transition = 'opacity 1s';
+				audio.play();
+				document.body.appendChild( audio );
 
-				audio = new Audio( player );
-				audio.mark = 75;
+				var timeoutID;
 
+				document.addEventListener( 'mousemove', function ( event ) {
+
+					audio.style.opacity = 0.5;
+
+					if ( timeoutID !== undefined ) {
+
+						clearTimeout( timeoutID );
+
+					}
+
+					timeoutID = setTimeout( function () {
+
+						audio.style.opacity = 0;
+
+					}, 1000 );
+
+				} );
+
+				analyser = new AudioAnalyser( audio );
+				AudioAnalyser.mark = 75;
+
+				audio.style.display = '';
 				renderer.domElement.style.display = '';
 
 				animate();
-
-				// document.body.appendChild( audio.getCanvas() );
 
 			}
 
@@ -390,9 +414,9 @@
 
 			function render() {
 
-				audio.update();
+				analyser.update();
 
-				var timer = audio.getCurrentTime();
+				var timer = audio.currentTime;
 
 				var k = timer / 360;
 
@@ -404,17 +428,17 @@
 				camera.lookAt( scene.position );
 
 				simulationShader.uniforms.timer.value = timer;
-				simulationShader.uniforms.opacity.value = Math.pow( audio.getFrequency()[ 4 ] / 768, 2 );
+				simulationShader.uniforms.opacity.value = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
 
-				if ( audio.getFrequency()[ 30 ] > 64 ) {
+				if ( analyser.getFrequency()[ 30 ] > 64 ) {
 
 					simulationShader.uniforms.opacity.value *= 2;
 
 				}
 
-				particleMaterial.uniforms.pointColor.value.x = audio.getFrequency()[ 30 ] / 256;
+				particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
 
-				if ( audio.getFrequency()[ 73 ] > 16 ) {
+				if ( analyser.getFrequency()[ 73 ] > 16 ) {
 
 					simulationShader.uniforms.opacity.value *= 6;
 
