@@ -75,12 +75,13 @@
 
 			void main() {
 
-				vUv = vec2(uv.x, 1.0 - uv.y);
+				vUv = vec2( uv.x, 1.0 - uv.y );
 				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 
 			}
 
 		</script>
+
 		<script id="fs-simulation" type="x-shader/x-fragment">
 							
 			uniform float opacity;
@@ -121,16 +122,14 @@
 
 				}
 
-				gl_FragColor = pos;	// write new position
+				gl_FragColor = pos;
 
 			}
 
 
 		</script>
 
-		<!-- zz85 - end simulations -->
-
-		<script id="vs-particles" type="x-shader/x-vertex">
+		<script id="vs-render" type="x-shader/x-vertex">
 
 			uniform sampler2D map;
 
@@ -156,7 +155,7 @@
 
 		</script>
 
-		<script id="fs-particles" type="x-shader/x-fragment">
+		<script id="fs-render" type="x-shader/x-fragment">
 
 			uniform vec3 pointColor;
 
@@ -188,6 +187,22 @@
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				document.body.appendChild( renderer.domElement );
 
+				var gl = renderer.context;
+
+				if ( gl.getExtension( "OES_texture_float" ) === null ) {
+
+					alert( "No OES_texture_float support for float textures!" );
+					return;
+
+				}
+
+				if ( gl.getParameter( gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS ) === 0 ) {
+
+					alert( "No support for vertex shader textures!" );
+					return;
+
+				}
+
 				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 5000 );
 				camera.position.z = 500;
 
@@ -196,8 +211,9 @@
 				//
 
 				var size = 1024;
+				var array = new Float32Array( size * size * 4 );
 
-				var positionsTexture = new THREE.DataTexture( new Float32Array( size * size * 4 ), size, size, THREE.RGBAFormat, THREE.FloatType );
+				var positionsTexture = new THREE.DataTexture( array, size, size, THREE.RGBAFormat, THREE.FloatType );
 				positionsTexture.minFilter = THREE.NearestFilter;
 				positionsTexture.magFilter = THREE.NearestFilter;
 				positionsTexture.generateMipmaps = false;
@@ -277,8 +293,6 @@
 				originsTexture.generateMipmaps = false;
 				originsTexture.needsUpdate = true;
 
-				// zz85 - fbo init
-
 				rtTexturePos = new THREE.WebGLRenderTarget( size, size, {
 					minFilter: THREE.NearestFilter,
 					magFilter: THREE.NearestFilter,
@@ -303,8 +317,7 @@
 
 				});
 
-				fboParticles = new THREE.FBOUtils( size, renderer, simulationShader );
-				fboParticles.renderToTexture( rtTexturePos, rtTexturePos2 );
+				fboParticles = new THREE.FBOUtils( renderer, simulationShader );
 
 				fboParticles.in = rtTexturePos;
 				fboParticles.out = rtTexturePos2;
@@ -331,8 +344,8 @@
 						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
 
 					},
-					vertexShader: document.getElementById( 'vs-particles' ).textContent,
-					fragmentShader: document.getElementById( 'fs-particles' ).textContent,
+					vertexShader: document.getElementById( 'vs-render' ).textContent,
+					fragmentShader: document.getElementById( 'fs-render' ).textContent,
 					blending: THREE.AdditiveBlending,
 					depthWrite: false,
 					// depthTest: false,
@@ -445,6 +458,7 @@
 				}
 
 				// swap
+
 				var tmp = fboParticles.in;
 				fboParticles.in = fboParticles.out;
 				fboParticles.out = tmp;
@@ -453,6 +467,8 @@
 				fboParticles.simulate( fboParticles.out );
 
 				particleMaterial.uniforms.map.value = fboParticles.out;
+
+				//
 
 				renderer.render( scene, camera );
 
