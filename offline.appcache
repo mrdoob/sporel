@@ -1,11 +1,15 @@
 CACHE MANIFEST
-# 2014-03-05
+# 2014-03-09
 
 CACHE:
-favicon.ico
-files/showcase/logo.png
-files/link.png
-files/projects/thumbnails.png
+Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg
+js/three.min.js
+js/GPGPU.js
+js/gpgpu/BlurShader.js
+js/gpgpu/CopyShader.js
+js/gpgpu/MixShader.js
+js/gpgpu/SimulationShader.js
+js/AudioAnalyser.js
 
 NETWORK:
 *
