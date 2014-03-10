@@ -1,0 +1,11 @@
+CACHE MANIFEST
+# 2014-03-05
+
+CACHE:
+favicon.ico
+files/showcase/logo.png
+files/link.png
+files/projects/thumbnails.png
+
+NETWORK:
+*
