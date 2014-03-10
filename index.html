@@ -65,69 +65,14 @@
 	<body>
 
 		<script src="three.min.js"></script>
-		<script src="FBOUtils.js"></script>
+
+		<script src="GPGPU.js"></script>
+		<script src="gpgpu/SimulationShader.js"></script>
+		<script src="gpgpu/BlurShader.js"></script>
+		<script src="gpgpu/CopyShader.js"></script>
+		<script src="gpgpu/MixShader.js"></script>
 
 		<script src="AudioAnalyser.js"></script>
-
-		<script id="vs-simulation" type="x-shader/x-vertex">
-				
-			varying vec2 vUv;
-
-			void main() {
-
-				vUv = vec2( uv.x, 1.0 - uv.y );
-				gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-
-			}
-
-		</script>
-
-		<script id="fs-simulation" type="x-shader/x-fragment">
-							
-			uniform float opacity;
-
-			uniform sampler2D tPositions;
-			uniform sampler2D tOrigins;
-			
-			uniform float timer;
-
-			// simulation
-			varying vec2 vUv;
-
-			float rand(vec2 co){
-			    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-			}
-		
-			void main() {
-
-				vec4 pos = texture2D( tPositions, vUv );
-
-				if ( rand( vUv + timer ) > 0.99 || pos.w <= 0.0 ) {
-
-					pos.xyz = texture2D( tOrigins, vUv ).xyz;
-					pos.w = opacity;
-
-				} else {
-
-					if ( pos.w <= 0.0 ) discard;
-
-					float x = pos.x + timer * 5.0;
-					float y = pos.y;
-					float z = pos.z + timer * 4.0;
-
-					pos.x += sin( y * 0.033 ) * cos( z * 0.037 ) * 0.4;
-					pos.y += sin( x * 0.035 ) * cos( x * 0.035 ) * 0.4;
-					pos.z += sin( x * 0.037 ) * cos( y * 0.033 ) * 0.4;
-					pos.w -= 0.00001;
-
-				}
-
-				gl_FragColor = pos;
-
-			}
-
-
-		</script>
 
 		<script id="vs-render" type="x-shader/x-vertex">
 
@@ -178,7 +123,13 @@
 			var scene, camera, renderer;
 			var particleMaterial;
 
-			var fboParticles, rtTexturePos, rtTexturePos2, simulationShader;
+			var gpgpu, simulationShader;
+			var copyShader, blurShader, mixShader;
+
+			var fboParticles, rtTexturePos, rtTexturePos2;
+			var rtPost1, rtPost2, rtPost3;
+
+			var count = 0;
 
 			function init() {
 
@@ -287,11 +238,17 @@
 
 				}
 
+				gpgpu = new GPGPU( renderer );
+
+				simulationShader = new GPGPU.SimulationShader();
+
 				var originsTexture = new THREE.DataTexture( data, size, size, THREE.RGBFormat, THREE.FloatType );
 				originsTexture.minFilter = THREE.NearestFilter;
 				originsTexture.magFilter = THREE.NearestFilter;
 				originsTexture.generateMipmaps = false;
 				originsTexture.needsUpdate = true;
+
+				simulationShader.setOriginsTexture( originsTexture );
 
 				rtTexturePos = new THREE.WebGLRenderTarget( size, size, {
 					minFilter: THREE.NearestFilter,
@@ -302,25 +259,6 @@
 				});
 
 				rtTexturePos2 = rtTexturePos.clone();
-
-				simulationShader = new THREE.ShaderMaterial({
-
-					uniforms: {
-						tPositions: { type: "t", value: positionsTexture },
-						tOrigins: { type: "t", value: originsTexture },
-						opacity: { type: "f", value: 0 },
-						timer: { type: "f", value: 0 }
-					},
-
-					vertexShader: document.getElementById('vs-simulation').textContent,
-					fragmentShader:  document.getElementById('fs-simulation').textContent
-
-				});
-
-				fboParticles = new THREE.FBOUtils( renderer, simulationShader );
-
-				fboParticles.in = rtTexturePos;
-				fboParticles.out = rtTexturePos2;
 
 				var geometry = new THREE.BufferGeometry();
 				geometry.addAttribute( 'position', new Float32Array( size * size * 3 ), 3 );
@@ -363,6 +301,21 @@
 				);
 				scene.add( mesh );
 				*/
+
+				rtPost1 = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight, { minFilter: THREE.LinearFilter } );
+				rtPost1.generateMipmaps = false;
+
+				rtPost2 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8, { minFilter: THREE.LinearFilter } );
+				rtPost2.generateMipmaps = false;
+
+				rtPost3 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8, { minFilter: THREE.LinearFilter } );
+				rtPost3.generateMipmaps = false;
+
+				copyShader = new GPGPU.CopyShader();
+				blurShader = new GPGPU.BlurShader();
+				mixShader = new GPGPU.MixShader();
+
+				//
 
 				window.addEventListener( 'resize', onWindowResize, false );
 
@@ -414,6 +367,16 @@
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
 
+				rtPost1.setSize( window.innerWidth, window.innerHeight );
+				rtPost2.setSize( window.innerWidth / 8, window.innerHeight / 8 );
+				rtPost3.setSize( window.innerWidth / 8, window.innerHeight / 8 );
+
+				// meh, renderTargets can't resize
+
+				rtPost1 = rtPost1.clone();
+				rtPost2 = rtPost2.clone();
+				rtPost3 = rtPost3.clone();
+
 				renderer.setSize( window.innerWidth, window.innerHeight );
 
 			}
@@ -431,46 +394,50 @@
 
 				var timer = audio.currentTime;
 
-				var k = timer / 360;
-
-				var easing = 1 - Math.pow( 2, - 10 * k );
+				var easing = 1 - Math.pow( 2, - 10 * ( timer / 360 ) );
 				var distance = 4000 * easing - 4350;
 
 				camera.position.x = - Math.cos( timer * 0.1 ) * distance;
 				camera.position.z = Math.sin( timer * 0.1 ) * distance;
 				camera.lookAt( scene.position );
 
-				simulationShader.uniforms.timer.value = timer;
-				simulationShader.uniforms.opacity.value = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
-
-				if ( analyser.getFrequency()[ 30 ] > 64 ) {
-
-					simulationShader.uniforms.opacity.value *= 2;
-
-				}
-
 				particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
 
-				if ( analyser.getFrequency()[ 73 ] > 16 ) {
+				var opacity = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
 
-					simulationShader.uniforms.opacity.value *= 6;
+				if ( analyser.getFrequency()[ 30 ] > 64 ) opacity *= 2;
+				if ( analyser.getFrequency()[ 73 ] > 16 ) opacity *= 6;
+
+				simulationShader.setOpacity( opacity );
+				simulationShader.setTimer( timer );
+
+				if ( count % 2 === 0 ) {
+
+					gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos ), rtTexturePos2 );
+					particleMaterial.uniforms.map.value = rtTexturePos2;
+
+				} else {
+
+					gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos2 ), rtTexturePos );
+					particleMaterial.uniforms.map.value = rtTexturePos;
 
 				}
 
-				// swap
+				count ++;
 
-				var tmp = fboParticles.in;
-				fboParticles.in = fboParticles.out;
-				fboParticles.out = tmp;
+				// post processing
 
-				simulationShader.uniforms.tPositions.value = fboParticles.in;
-				fboParticles.simulate( fboParticles.out );
+				gpgpu.render( scene, camera, rtPost1 );
+				gpgpu.pass( copyShader.setTexture( rtPost1 ), rtPost2 );
 
-				particleMaterial.uniforms.map.value = fboParticles.out;
+				for ( var i = 0; i < 16; i ++ ) {
 
-				//
+					gpgpu.pass( blurShader.setTexture( rtPost2 ).setDelta( 1 / rtPost2.width,  0 ), rtPost3 );
+					gpgpu.pass( blurShader.setTexture( rtPost3 ).setDelta( 0, 1 / rtPost2.height ), rtPost2 );
 
-				renderer.render( scene, camera );
+				}
+
+				gpgpu.out( mixShader.setTextures( rtPost1, rtPost2 ) );
 
 			}
 
