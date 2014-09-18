@@ -29,7 +29,7 @@
 				background-color: #000;
 
 				overflow: hidden;
-			}				
+			}
 			a {
 				color: #00ff22;
 			}
@@ -39,7 +39,7 @@
 			}
 			#info {
 				text-align: center;
-			}	
+			}
 		</style>
 	</head>
 	<body>
@@ -60,7 +60,6 @@
 
 			uniform float size;
 
-			varying vec2 vUv;
 			varying vec3 vPosition;
 			varying float opacity;
 
@@ -240,10 +239,7 @@
 
 				rtTexturePos2 = rtTexturePos.clone();
 
-				var geometry = new THREE.BufferGeometry();
-				geometry.addAttribute( 'position', new Float32Array( size * size * 3 ), 3 );
-
-				var positions = geometry.getAttribute( 'position' ).array;
+				var positions = new Float32Array( size * size * 3 );
 
 				for ( var i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3 ) {
 
@@ -251,6 +247,9 @@
 					positions[ j + 1 ] = Math.floor( i / size ) / size;
 
 				}
+
+				var geometry = new THREE.BufferGeometry();
+				geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
 
 				particleMaterial = new THREE.ShaderMaterial( {
 
@@ -271,7 +270,7 @@
 
 				} );
 
-				var mesh = new THREE.ParticleSystem( geometry, particleMaterial );
+				var mesh = new THREE.PointCloud( geometry, particleMaterial );
 				scene.add( mesh );
 
 				/*
@@ -302,7 +301,6 @@
 				//
 
 				audio = document.createElement( 'audio' );
-				audio.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
 				audio.controls = true;
 				audio.style.position = 'absolute';
 				audio.style.left = 'calc(50% - 150px)';
@@ -312,9 +310,19 @@
 				audio.play();
 				document.body.appendChild( audio );
 
+				var source = document.createElement( 'source' );
+				source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
+				source.type = 'audio/ogg';
+				audio.appendChild( source );
+
+				var source = document.createElement( 'source' );
+				source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).mp3';
+				source.type = 'audio/mpeg';
+				audio.appendChild( source );
+
 				var timeoutID;
 
-				document.addEventListener( 'mousemove', function ( event ) {
+				var showControls = function ( event ) {
 
 					audio.style.opacity = 0.5;
 
@@ -330,7 +338,10 @@
 
 					}, 1000 );
 
-				} );
+				};
+
+				document.addEventListener( 'mousemove', showControls );
+				document.addEventListener( 'touchstart', showControls );
 
 				analyser = new AudioAnalyser( audio );
 				AudioAnalyser.mark = 75;

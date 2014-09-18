@@ -8,7 +8,7 @@ var GPGPU = function ( renderer ) {
 
 	var scene = new THREE.Scene();
 
-	var mesh = new THREE.Mesh( new THREE.PlaneGeometry( 1, 1 ) );
+	var mesh = new THREE.Mesh( new THREE.PlaneBufferGeometry( 1, 1 ) );
 	scene.add( mesh );
 
 	this.render = function ( _scene, _camera, target ) {
