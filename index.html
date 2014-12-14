@@ -300,6 +300,7 @@
 				audio.style.bottom = '25px';
 				audio.style.display = 'none';
 				audio.style.transition = 'opacity 1s';
+				audio.onloadedmetadata = animate;
 				audio.play();
 				document.body.appendChild( audio );
 
@@ -341,8 +342,6 @@
 
 				audio.style.display = '';
 				renderer.domElement.style.display = '';
-
-				animate();
 
 			}
 
