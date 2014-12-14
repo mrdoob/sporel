@@ -141,13 +141,6 @@
 				//
 
 				var size = 1024;
-				var array = new Float32Array( size * size * 4 );
-
-				var positionsTexture = new THREE.DataTexture( array, size, size, THREE.RGBAFormat, THREE.FloatType );
-				positionsTexture.minFilter = THREE.NearestFilter;
-				positionsTexture.magFilter = THREE.NearestFilter;
-				positionsTexture.generateMipmaps = false;
-				positionsTexture.needsUpdate = true;
 
 				var geometry = new THREE.IcosahedronGeometry( 150, 1 );
 
