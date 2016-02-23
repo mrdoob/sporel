@@ -97,7 +97,27 @@
 
 		<script>
 
-			var audio, analyser;
+			var audio = document.createElement( 'audio' );
+			audio.controls = true;
+			audio.style.position = 'absolute';
+			audio.style.left = 'calc(50% - 150px)';
+			audio.style.bottom = '25px';
+			audio.style.display = 'none';
+			audio.style.opacity = 0;
+			audio.style.transition = 'opacity 1s';
+			document.body.appendChild( audio );
+
+			var source = document.createElement( 'source' );
+			source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
+			source.type = 'audio/ogg';
+			audio.appendChild( source );
+
+			var source = document.createElement( 'source' );
+			source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).mp3';
+			source.type = 'audio/mpeg';
+			audio.appendChild( source );
+
+			var analyser;
 
 			var scene, camera, renderer;
 			var particleMaterial;
@@ -217,7 +237,6 @@
 				var originsTexture = new THREE.DataTexture( data, size, size, THREE.RGBFormat, THREE.FloatType );
 				originsTexture.minFilter = THREE.NearestFilter;
 				originsTexture.magFilter = THREE.NearestFilter;
-				originsTexture.generateMipmaps = false;
 				originsTexture.needsUpdate = true;
 
 				simulationShader.setOriginsTexture( originsTexture );
@@ -226,9 +245,10 @@
 					minFilter: THREE.NearestFilter,
 					magFilter: THREE.NearestFilter,
 					format: THREE.RGBAFormat,
-					type:THREE.FloatType,
+					type: THREE.FloatType,
+					depthBuffer: false,
 					stencilBuffer: false
-				});
+				} );
 
 				rtTexturePos2 = rtTexturePos.clone();
 
@@ -236,7 +256,7 @@
 
 				for ( var i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3 ) {
 
-					positions[ j     ] = ( i % size ) / size;
+					positions[ j + 0 ] = ( i % size ) / size;
 					positions[ j + 1 ] = Math.floor( i / size ) / size;
 
 				}
@@ -263,8 +283,8 @@
 
 				} );
 
-				var mesh = new THREE.PointCloud( geometry, particleMaterial );
-				scene.add( mesh );
+				var points = new THREE.Points( geometry, particleMaterial );
+				scene.add( points );
 
 				/*
 				var mesh = new THREE.Mesh(
@@ -275,13 +295,13 @@
 				*/
 
 				rtPost1 = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight, { minFilter: THREE.LinearFilter } );
-				rtPost1.generateMipmaps = false;
+				rtPost1.texture.generateMipmaps = false;
 
 				rtPost2 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8, { minFilter: THREE.LinearFilter } );
-				rtPost2.generateMipmaps = false;
+				rtPost2.texture.generateMipmaps = false;
 
 				rtPost3 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8, { minFilter: THREE.LinearFilter } );
-				rtPost3.generateMipmaps = false;
+				rtPost3.texture.generateMipmaps = false;
 
 				copyShader = new GPGPU.CopyShader();
 				blurShader = new GPGPU.BlurShader();
@@ -293,32 +313,12 @@
 
 				//
 
-				audio = document.createElement( 'audio' );
-				audio.controls = true;
-				audio.style.position = 'absolute';
-				audio.style.left = 'calc(50% - 150px)';
-				audio.style.bottom = '25px';
-				audio.style.display = 'none';
-				audio.style.transition = 'opacity 1s';
-				audio.onloadedmetadata = animate;
-				audio.play();
-				document.body.appendChild( audio );
-
-				var source = document.createElement( 'source' );
-				source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
-				source.type = 'audio/ogg';
-				audio.appendChild( source );
-
-				var source = document.createElement( 'source' );
-				source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).mp3';
-				source.type = 'audio/mpeg';
-				audio.appendChild( source );
-
 				var timeoutID;
 
 				var showControls = function ( event ) {
 
 					audio.style.opacity = 0.5;
+					document.body.style.cursor = 'default';
 
 					if ( timeoutID !== undefined ) {
 
@@ -329,6 +329,7 @@
 					timeoutID = setTimeout( function () {
 
 						audio.style.opacity = 0;
+						document.body.style.cursor = 'none';
 
 					}, 1000 );
 
@@ -338,10 +339,11 @@
 				document.addEventListener( 'touchstart', showControls );
 
 				analyser = new AudioAnalyser( audio );
-				AudioAnalyser.mark = 75;
 
 				audio.style.display = '';
 				renderer.domElement.style.display = '';
+
+				animate();
 
 			}
 
@@ -439,6 +441,31 @@
 			start.addEventListener( 'click', function ( event ) {
 
 				info.style.display = 'none';
+
+				var element = document.body;
+
+				if ( element.requestFullscreen ) {
+
+					element.requestFullscreen();
+
+				} else if ( element.msRequestFullscreen ) {
+
+					element.msRequestFullscreen();
+
+				} else if ( element.mozRequestFullScreen ) {
+
+					element.mozRequestFullScreen();
+
+				} else if ( element.webkitRequestFullscreen ) {
+
+					element.webkitRequestFullscreen();
+
+				}
+
+				element.style.cursor = 'none';
+
+				audio.play();
+
 				setTimeout( init, 100 );
 
 			} );

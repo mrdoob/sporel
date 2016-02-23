@@ -20,7 +20,6 @@ var AudioAnalyser = function ( element ) {
 
 	return {
 
-		mark: 0,
 		getFrequency: function () {
 
 			return frequencyData;
