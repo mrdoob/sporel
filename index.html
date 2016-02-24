@@ -133,8 +133,30 @@
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: false, stencil: false } );
-				renderer.domElement.style.display = 'none';
 				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.domElement.addEventListener( 'dblclick', function ( event ) {
+
+					var element = document.body;
+
+					if ( element.requestFullscreen ) {
+
+						element.requestFullscreen();
+
+					} else if ( element.msRequestFullscreen ) {
+
+						element.msRequestFullscreen();
+
+					} else if ( element.mozRequestFullScreen ) {
+
+						element.mozRequestFullScreen();
+
+					} else if ( element.webkitRequestFullscreen ) {
+
+						element.webkitRequestFullscreen();
+
+					}
+
+				} );
 				document.body.appendChild( renderer.domElement );
 
 				var gl = renderer.context;
@@ -341,7 +363,6 @@
 				analyser = new AudioAnalyser( audio );
 
 				audio.style.display = '';
-				renderer.domElement.style.display = '';
 
 				animate();
 
@@ -440,31 +461,8 @@
 			start.style.margin = '20px';
 			start.addEventListener( 'click', function ( event ) {
 
+				document.body.style.cursor = 'none';
 				info.style.display = 'none';
-
-				var element = document.body;
-
-				/*
-				if ( element.requestFullscreen ) {
-
-					element.requestFullscreen();
-
-				} else if ( element.msRequestFullscreen ) {
-
-					element.msRequestFullscreen();
-
-				} else if ( element.mozRequestFullScreen ) {
-
-					element.mozRequestFullScreen();
-
-				} else if ( element.webkitRequestFullscreen ) {
-
-					element.webkitRequestFullscreen();
-
-				}
-				*/
-
-				element.style.cursor = 'none';
 
 				audio.play();
 
