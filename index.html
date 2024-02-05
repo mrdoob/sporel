@@ -451,22 +451,34 @@
 
 			var info = document.createElement( 'div' );
 			info.id = 'info';
-			info.innerHTML = '"Sporel" by Mr.doob<br /><span style="font-size:18px">music: <a href="https://soundcloud.com/frank-bolero/sporel-mix" target="_blank">Rymdlego - Sporel (Frank Bolero Ambient mix)</a></span><hr />';
+			info.innerHTML = '"Sporel" by Mr,doob<br /><span style="font-size:18px">music: <a href="https://soundcloud.com/frank-bolero/sporel-mix" target="_blank">Rymdlego - Sporel (Frank Bolero Ambient mix)</a></span><hr />';
 			document.body.appendChild( info );
+
+			var wakeLock = null;
 
 			var start = document.createElement( 'span' );
 			start.textContent = 'START';
 			start.style.color = '#ffff22';
 			start.style.cursor = 'pointer';
 			start.style.margin = '20px';
-			start.addEventListener( 'click', function ( event ) {
+			start.addEventListener( 'click', async function ( event ) {
 
 				document.body.style.cursor = 'none';
 				info.style.display = 'none';
 
 				audio.play();
 
-				setTimeout( init, 100 );
+				if ( 'wakeLock' in navigator ) {
+
+					try {
+
+						wakeLock = await navigator.wakeLock.request( 'screen' );
+
+					} catch ( err ) {}
+
+				}
+
+				setTimeout( init, 100 ); // ?
 
 			} );
 			info.appendChild( start );
