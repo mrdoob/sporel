@@ -442,8 +442,6 @@
 			info.innerHTML = '"Sporel" by Mr.doob<br /><span style="font-size:18px">music: <a href="https://soundcloud.com/frank-bolero/sporel-mix" target="_blank">Rymdlego - Sporel (Frank Bolero Ambient mix)</a></span><hr />';
 			document.body.appendChild( info );
 
-			var wakeLock = null;
-
 			var start = document.createElement( 'span' );
 			start.textContent = 'START';
 			start.style.color = '#ffff22';
@@ -460,7 +458,7 @@
 
 					try {
 
-						wakeLock = await navigator.wakeLock.request( 'screen' );
+						await navigator.wakeLock.request( 'screen' );
 
 					} catch ( err ) {}
 
