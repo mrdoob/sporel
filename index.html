@@ -45,6 +45,7 @@
 	<body>
 
 		<script src="js/three.min.js"></script>
+		<!-- <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.18"></script> -->
 
 		<script src="js/GPGPU.js"></script>
 		<script src="js/gpgpu/SimulationShader.js"></script>
@@ -53,47 +54,6 @@
 		<script src="js/gpgpu/MixShader.js"></script>
 
 		<script src="js/AudioAnalyser.js"></script>
-
-		<script id="vs-render" type="x-shader/x-vertex">
-
-			uniform sampler2D map;
-
-			uniform float size;
-
-			varying vec3 vPosition;
-			varying float opacity;
-
-			void main() {
-
-				vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
-
-				vec4 data = texture2D( map, uv );
-
-				vPosition = data.xyz;
-				opacity = data.w;
-
-				gl_PointSize = 1.0; // data.w * 10.0 + 1.0;
-				gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
-
-			}
-
-		</script>
-
-		<script id="fs-render" type="x-shader/x-fragment">
-
-			uniform vec3 pointColor;
-
-			varying vec3 vPosition;
-			varying float opacity;
-
-			void main() {
-
-				if ( opacity <= 0.0 ) discard;
-				gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
-
-			}
-
-		</script>
 
 		<script>
 
@@ -130,9 +90,12 @@
 
 			var count = 0;
 
+			let gui;
+
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: false, stencil: false } );
+				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				renderer.domElement.addEventListener( 'dblclick', function ( event ) {
 
@@ -163,8 +126,7 @@
 
 				}
 
-				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 5000 );
-				camera.position.z = 500;
+				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 10, 5000 );
 
 				scene = new THREE.Scene();
 
@@ -284,8 +246,49 @@
 						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
 
 					},
-					vertexShader: document.getElementById( 'vs-render' ).textContent,
-					fragmentShader: document.getElementById( 'fs-render' ).textContent,
+					vertexShader: `
+						uniform sampler2D map;
+						uniform float size;
+
+						varying vec3 vPosition;
+						varying float opacity;
+
+						void main() {
+							vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
+							vec4 data = texture2D( map, uv );
+
+							vPosition = data.xyz;
+							opacity = data.w;
+
+							/*
+							if ( length( vPosition ) < 120.0 ) {
+								opacity = 0.0;
+							}
+							*/
+
+							vec4 mvPosition = modelViewMatrix * vec4( vPosition, 1.0 );
+							gl_Position = projectionMatrix * mvPosition;
+
+							// Implement point size attenuation
+							float pointSize = 1.0 * ( 300.0 / -mvPosition.z );
+
+							// Clamp the point size to a reasonable range
+							gl_PointSize = clamp(pointSize, 0.1, 20.0);
+						}
+					`,
+					fragmentShader: `
+						uniform vec3 pointColor;
+
+						varying vec3 vPosition;
+						varying float opacity;
+
+						void main() {
+
+							if ( opacity <= 0.0 ) discard;
+							gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
+
+						}
+					`,
 					blending: THREE.AdditiveBlending,
 					depthWrite: false,
 					// depthTest: false,
@@ -304,13 +307,16 @@
 				scene.add( mesh );
 				*/
 
-				rtPost1 = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight, { minFilter: THREE.LinearFilter } );
+				var dprWidth = window.innerWidth * window.devicePixelRatio;
+				var dprHeight = window.innerHeight * window.devicePixelRatio;
+
+				rtPost1 = new THREE.WebGLRenderTarget( dprWidth, dprHeight, { minFilter: THREE.LinearFilter } );
 				rtPost1.texture.generateMipmaps = false;
 
-				rtPost2 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8, { minFilter: THREE.LinearFilter } );
+				rtPost2 = new THREE.WebGLRenderTarget( dprWidth / 8, dprHeight / 8, { minFilter: THREE.LinearFilter } );
 				rtPost2.texture.generateMipmaps = false;
 
-				rtPost3 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8, { minFilter: THREE.LinearFilter } );
+				rtPost3 = new THREE.WebGLRenderTarget( dprWidth / 8, dprHeight / 8, { minFilter: THREE.LinearFilter } );
 				rtPost3.texture.generateMipmaps = false;
 
 				copyShader = new GPGPU.CopyShader();
@@ -352,6 +358,20 @@
 
 				audio.style.display = '';
 
+				/*				
+				gui = new lil.GUI();
+
+				const params = {
+					opacity: 1.0
+				};
+
+				gui.add( params, 'opacity', 0, 1 ).onChange( function ( value ) {
+
+					simulationShader.setOpacity( value );
+
+				} );
+				*/
+
 				animate();
 
 			}
@@ -361,9 +381,12 @@
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
 
-				rtPost1.setSize( window.innerWidth, window.innerHeight );
-				rtPost2.setSize( window.innerWidth / 8, window.innerHeight / 8 );
-				rtPost3.setSize( window.innerWidth / 8, window.innerHeight / 8 );
+				var dprWidth = window.innerWidth * window.devicePixelRatio;
+				var dprHeight = window.innerHeight * window.devicePixelRatio;
+
+				rtPost1.setSize( dprWidth, dprHeight );
+				rtPost2.setSize( dprWidth / 8, dprHeight / 8 );
+				rtPost3.setSize( dprWidth / 8, dprHeight / 8 );
 
 				// meh, renderTargets can't resize
 
@@ -389,18 +412,18 @@
 				var timer = audio.currentTime;
 
 				var easing = 1 - Math.pow( 2, - 10 * ( timer / 360 ) );
-				var distance = 4000 * easing - 4350;
+				var distance = 3000 * easing - 3350;
 
 				camera.position.x = - Math.cos( timer * 0.1 ) * distance;
 				camera.position.z = Math.sin( timer * 0.1 ) * distance;
 				camera.lookAt( scene.position );
 
-				particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
+				// particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
 
-				var opacity = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
+				var opacity = analyser.getFrequency()[ 4 ] / 512;
 
-				if ( analyser.getFrequency()[ 30 ] > 64 ) opacity *= 2;
-				if ( analyser.getFrequency()[ 73 ] > 16 ) opacity *= 6;
+				if ( analyser.getFrequency()[ 30 ] > 32 ) opacity *= 10;
+				if ( analyser.getFrequency()[ 73 ] > 4 ) opacity *= 5;
 
 				simulationShader.setOpacity( opacity );
 				simulationShader.setTimer( timer );
