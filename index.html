@@ -47,8 +47,6 @@
 		<script src="js/three.min.js"></script>
 		<!-- <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.18"></script> -->
 
-		<script src="js/DataUtils.js"></script>
-
 		<script src="js/GPGPU.js"></script>
 		<script src="js/gpgpu/SimulationShader.js"></script>
 		<script src="js/gpgpu/BlurShader.js"></script>
@@ -114,14 +112,12 @@
 
 				var gl = renderer.context;
 
-				/*
 				if ( gl.getExtension( "OES_texture_float" ) === null ) {
 
 					alert( "No OES_texture_float support for float textures!" );
 					return;
 
 				}
-				*/
 
 				if ( gl.getParameter( gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS ) === 0 ) {
 
@@ -211,14 +207,12 @@
 
 				simulationShader = new GPGPU.SimulationShader();
 
-				var data16 = Uint16Array.from( data.map( v => toHalfFloat( v ) ) );
-
-				var originsTexture = new THREE.DataTexture( data16, size, size );
-				originsTexture.generateMipmaps = false;
+				var originsTexture = new THREE.DataTexture( data, size, size );
 				originsTexture.minFilter = THREE.NearestFilter;
 				originsTexture.magFilter = THREE.NearestFilter;
 				originsTexture.format = THREE.RGBAFormat;
-				originsTexture.type = THREE.HalfFloatType;
+				originsTexture.type = THREE.FloatType;
+				originsTexture.generateMipmaps = false;
 				originsTexture.needsUpdate = true;
 
 				simulationShader.setOriginsTexture( originsTexture );
