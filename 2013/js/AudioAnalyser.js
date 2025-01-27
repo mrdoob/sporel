@@ -1,4 +1,4 @@
-var AudioAnalyser = function ( element ) {
+function AudioAnalyser( element ) {
 
 	var AudioContext = window.AudioContext || window.webkitAudioContext;
 	var context = new AudioContext();
@@ -34,3 +34,5 @@ var AudioAnalyser = function ( element ) {
 	};
 
 };
+
+export { AudioAnalyser };

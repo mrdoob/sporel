@@ -2,7 +2,9 @@
  * @author mrdoob / http://www.mrdoob.com
  */
 
-GPGPU.SimulationShader = function () {
+import * as THREE from 'three';
+
+function SimulationShader() {
 
 	var material = new THREE.ShaderMaterial( {
 
@@ -108,3 +110,5 @@ GPGPU.SimulationShader = function () {
 	}
 
 };
+
+export { SimulationShader };
