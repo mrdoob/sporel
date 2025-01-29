@@ -44,18 +44,67 @@
 	</head>
 	<body>
 
-		<script src="js/three.min.js"></script>
-		<!-- <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.18"></script> -->
+		<script id="vs-render" type="x-shader/x-vertex">
 
-		<script src="js/GPGPU.js"></script>
-		<script src="js/gpgpu/SimulationShader.js"></script>
-		<script src="js/gpgpu/BlurShader.js"></script>
-		<script src="js/gpgpu/CopyShader.js"></script>
-		<script src="js/gpgpu/MixShader.js"></script>
+			uniform sampler2D map;
 
-		<script src="js/AudioAnalyser.js"></script>
+			uniform float size;
 
-		<script>
+			varying vec3 vPosition;
+			varying float opacity;
+
+			void main() {
+
+				vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
+
+				vec4 data = texture2D( map, uv );
+
+				vPosition = data.xyz;
+				opacity = data.w;
+
+				gl_PointSize = 1.0; // data.w * 10.0 + 1.0;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
+
+			}
+
+		</script>
+
+		<script id="fs-render" type="x-shader/x-fragment">
+
+			uniform vec3 pointColor;
+
+			varying vec3 vPosition;
+			varying float opacity;
+
+			void main() {
+
+				if ( opacity <= 0.0 ) discard;
+				gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
+
+			}
+
+		</script>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "./js/three.module.min.js"
+				}
+			}
+		</script>
+
+		<script type="module">
+
+			import * as THREE from 'three';
+
+			import { GPGPU } from './js/GPGPU.js';
+			import { SimulationShader } from './js/gpgpu/SimulationShader.js';
+			import { BlurShader } from './js/gpgpu/BlurShader.js';
+			import { CopyShader } from './js/gpgpu/CopyShader.js';
+			import { MixShader } from './js/gpgpu/MixShader.js';
+			import { AudioAnalyser } from './js/AudioAnalyser.js';
+
+			import { IcosahedronGeometry as LegacyIcosahedronGeometry } from './js/legacy/IcosahedronGeometry.js';
 
 			var audio = document.createElement( 'audio' );
 			audio.controls = true;
@@ -90,12 +139,9 @@
 
 			var count = 0;
 
-			let gui;
-
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: false, stencil: false } );
-				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				renderer.domElement.addEventListener( 'dblclick', function ( event ) {
 
@@ -110,23 +156,8 @@
 				} );
 				document.body.appendChild( renderer.domElement );
 
-				var gl = renderer.context;
-
-				if ( gl.getExtension( "OES_texture_float" ) === null ) {
-
-					alert( "No OES_texture_float support for float textures!" );
-					return;
-
-				}
-
-				if ( gl.getParameter( gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS ) === 0 ) {
-
-					alert( "No support for vertex shader textures!" );
-					return;
-
-				}
-
-				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 10, 5000 );
+				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 5000 );
+				camera.position.z = 500;
 
 				scene = new THREE.Scene();
 
@@ -157,33 +188,9 @@
 
 				//
 
-				/*
-				var points = THREE.GeometryUtils.randomPointsInGeometry( geometry, data.length / 3 );
-
-				for ( var i = 0, j = 0, l = data.length; i < l; i += 3, j += 1 ) {
-
-					data[ i ] = points[ j ].x;
-					data[ i + 1 ] = points[ j ].y;
-					data[ i + 2 ] = points[ j ].z;
-
-				}
-				*/
-
-				var point = new THREE.Vector3();
+				var geometry = new LegacyIcosahedronGeometry( 150, 1 );
 				var facesLength = geometry.faces.length;
-
-				/*
-
-				for ( var i = 0, l = data.length; i < l; i += 3 ) {
-
-					var point = geometry.vertices[ Math.floor( Math.random() * geometry.vertices.length ) ];
-
-					data[ i ] = point.x;
-					data[ i + 1 ] = point.y;
-					data[ i + 2 ] = point.z;
-
-				}
-				*/
+				var point = new THREE.Vector3();
 
 				for ( var i = 0, l = data.length; i < l; i += 4 ) {
 
@@ -196,23 +203,23 @@
 					point.multiplyScalar( Math.random() );
 					point.add( vertex1 );
 
-					data[ i ] = point.x;
+					data[ i + 0 ] = point.x;
 					data[ i + 1 ] = point.y;
 					data[ i + 2 ] = point.z;
-					data[ i + 3 ] = 1.0;
+					data[ i + 3 ] = 0;
 
 				}
 
+				//
+
 				gpgpu = new GPGPU( renderer );
 
-				simulationShader = new GPGPU.SimulationShader();
+				simulationShader = new SimulationShader();
 
 				var originsTexture = new THREE.DataTexture( data, size, size );
+				originsTexture.type = THREE.FloatType;
 				originsTexture.minFilter = THREE.NearestFilter;
 				originsTexture.magFilter = THREE.NearestFilter;
-				originsTexture.format = THREE.RGBAFormat;
-				originsTexture.type = THREE.FloatType;
-				originsTexture.generateMipmaps = false;
 				originsTexture.needsUpdate = true;
 
 				simulationShader.setOriginsTexture( originsTexture );
@@ -238,61 +245,20 @@
 				}
 
 				var geometry = new THREE.BufferGeometry();
-				geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+				geometry.setAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
 
 				particleMaterial = new THREE.ShaderMaterial( {
 
 					uniforms: {
 
-						"map": { type: "t", value: rtTexturePos },
+						"map": { type: "t", value: rtTexturePos.texture },
 						"size": { type: "f", value: size },
 
 						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
 
 					},
-					vertexShader: `
-						uniform sampler2D map;
-						uniform float size;
-
-						varying vec3 vPosition;
-						varying float opacity;
-
-						void main() {
-							vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
-							vec4 data = texture2D( map, uv );
-
-							vPosition = data.xyz;
-							opacity = data.w;
-
-							/*
-							if ( length( vPosition ) < 120.0 ) {
-								opacity = 0.0;
-							}
-							*/
-
-							vec4 mvPosition = modelViewMatrix * vec4( vPosition, 1.0 );
-							gl_Position = projectionMatrix * mvPosition;
-
-							// Implement point size attenuation
-							float pointSize = 1.0 * ( 300.0 / -mvPosition.z );
-
-							// Clamp the point size to a reasonable range
-							gl_PointSize = clamp(pointSize, 0.1, 20.0);
-						}
-					`,
-					fragmentShader: `
-						uniform vec3 pointColor;
-
-						varying vec3 vPosition;
-						varying float opacity;
-
-						void main() {
-
-							if ( opacity <= 0.0 ) discard;
-							gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
-
-						}
-					`,
+					vertexShader: document.getElementById( 'vs-render' ).textContent,
+					fragmentShader: document.getElementById( 'fs-render' ).textContent,
 					blending: THREE.AdditiveBlending,
 					depthWrite: false,
 					// depthTest: false,
@@ -305,27 +271,27 @@
 
 				/*
 				var mesh = new THREE.Mesh(
-					new THREE.CubeGeometry( 500, 500, 500 ),
-					new THREE.MeshBasicMaterial( { color: 0xffffff, wireframe: true, opacity: 0.1, transparent: true } )
+					new THREE.PlaneGeometry( 1000, 1000 ),
+					new THREE.MeshBasicMaterial( { color: 0xffffff, map: rtTexturePos.texture, side: THREE.DoubleSide } )
 				);
 				scene.add( mesh );
 				*/
 
-				var dprWidth = window.innerWidth * window.devicePixelRatio;
-				var dprHeight = window.innerHeight * window.devicePixelRatio;
-
-				rtPost1 = new THREE.WebGLRenderTarget( dprWidth, dprHeight, { minFilter: THREE.LinearFilter } );
+				rtPost1 = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight );
+				rtPost1.texture.minFilter = THREE.LinearFilter;
 				rtPost1.texture.generateMipmaps = false;
 
-				rtPost2 = new THREE.WebGLRenderTarget( dprWidth / 8, dprHeight / 8, { minFilter: THREE.LinearFilter } );
+				rtPost2 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8 );
+				rtPost2.texture.minFilter = THREE.LinearFilter;
 				rtPost2.texture.generateMipmaps = false;
 
-				rtPost3 = new THREE.WebGLRenderTarget( dprWidth / 8, dprHeight / 8, { minFilter: THREE.LinearFilter } );
+				rtPost3 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8 );
+				rtPost3.texture.minFilter = THREE.LinearFilter;
 				rtPost3.texture.generateMipmaps = false;
 
-				copyShader = new GPGPU.CopyShader();
-				blurShader = new GPGPU.BlurShader();
-				mixShader = new GPGPU.MixShader();
+				copyShader = new CopyShader();
+				blurShader = new BlurShader();
+				mixShader = new MixShader();
 
 				//
 
@@ -362,20 +328,6 @@
 
 				audio.style.display = '';
 
-				/*				
-				gui = new lil.GUI();
-
-				const params = {
-					opacity: 1.0
-				};
-
-				gui.add( params, 'opacity', 0, 1 ).onChange( function ( value ) {
-
-					simulationShader.setOpacity( value );
-
-				} );
-				*/
-
 				animate();
 
 			}
@@ -385,12 +337,9 @@
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
 
-				var dprWidth = window.innerWidth * window.devicePixelRatio;
-				var dprHeight = window.innerHeight * window.devicePixelRatio;
-
-				rtPost1.setSize( dprWidth, dprHeight );
-				rtPost2.setSize( dprWidth / 8, dprHeight / 8 );
-				rtPost3.setSize( dprWidth / 8, dprHeight / 8 );
+				rtPost1.setSize( window.innerWidth, window.innerHeight );
+				rtPost2.setSize( window.innerWidth / 8, window.innerHeight / 8 );
+				rtPost3.setSize( window.innerWidth / 8, window.innerHeight / 8 );
 
 				// meh, renderTargets can't resize
 
@@ -416,31 +365,31 @@
 				var timer = audio.currentTime;
 
 				var easing = 1 - Math.pow( 2, - 10 * ( timer / 360 ) );
-				var distance = 3000 * easing - 3350;
+				var distance = 4000 * easing - 4350;
 
 				camera.position.x = - Math.cos( timer * 0.1 ) * distance;
 				camera.position.z = Math.sin( timer * 0.1 ) * distance;
 				camera.lookAt( scene.position );
 
-				// particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
+				particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
 
-				var opacity = analyser.getFrequency()[ 4 ] / 512;
+				var opacity = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
 
-				if ( analyser.getFrequency()[ 30 ] > 32 ) opacity *= 10;
-				if ( analyser.getFrequency()[ 73 ] > 4 ) opacity *= 5;
+				if ( analyser.getFrequency()[ 30 ] > 64 ) opacity *= 2;
+				if ( analyser.getFrequency()[ 73 ] > 16 ) opacity *= 6;
 
 				simulationShader.setOpacity( opacity );
 				simulationShader.setTimer( timer );
 
 				if ( count % 2 === 0 ) {
 
-					gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos ), rtTexturePos2 );
-					particleMaterial.uniforms.map.value = rtTexturePos2;
+					gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos.texture ), rtTexturePos2 );
+					particleMaterial.uniforms.map.value = rtTexturePos2.texture;
 
 				} else {
 
-					gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos2 ), rtTexturePos );
-					particleMaterial.uniforms.map.value = rtTexturePos;
+					gpgpu.pass( simulationShader.setPositionsTexture( rtTexturePos2.texture ), rtTexturePos );
+					particleMaterial.uniforms.map.value = rtTexturePos.texture;
 
 				}
 
@@ -449,16 +398,16 @@
 				// post processing
 
 				gpgpu.render( scene, camera, rtPost1 );
-				gpgpu.pass( copyShader.setTexture( rtPost1 ), rtPost2 );
+				gpgpu.pass( copyShader.setTexture( rtPost1.texture ), rtPost2 );
 
 				for ( var i = 0; i < 16; i ++ ) {
 
-					gpgpu.pass( blurShader.setTexture( rtPost2 ).setDelta( 1 / rtPost2.width,  0 ), rtPost3 );
-					gpgpu.pass( blurShader.setTexture( rtPost3 ).setDelta( 0, 1 / rtPost2.height ), rtPost2 );
+					gpgpu.pass( blurShader.setTexture( rtPost2.texture ).setDelta( 1 / rtPost2.width,  0 ), rtPost3 );
+					gpgpu.pass( blurShader.setTexture( rtPost3.texture ).setDelta( 0, 1 / rtPost2.height ), rtPost2 );
 
 				}
 
-				gpgpu.out( mixShader.setTextures( rtPost1, rtPost2 ) );
+				gpgpu.out( mixShader.setTextures( rtPost1.texture, rtPost2.texture ) );
 
 			}
 

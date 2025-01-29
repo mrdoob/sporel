@@ -2,12 +2,14 @@
  * @author mrdoob / http://www.mrdoob.com
  */
 
-GPGPU.CopyShader = function () {
+import * as THREE from 'three';
+
+function CopyShader() {
 
 	var material = new THREE.ShaderMaterial( {
 
 		uniforms: {
-			texture: { type: 't', value: null }
+			sampler: { type: 't', value: null }
 		},
 		vertexShader: [
 
@@ -22,10 +24,10 @@ GPGPU.CopyShader = function () {
 		fragmentShader: [
 
 			'varying vec2 vUv;',
-			'uniform sampler2D texture;',
+			'uniform sampler2D sampler;',
 
 			'void main() {',
-			'	gl_FragColor = texture2D( texture, vUv );',
+			'	gl_FragColor = texture2D( sampler, vUv );',
 			'}'
 
 		].join( '\n' )
@@ -38,7 +40,7 @@ GPGPU.CopyShader = function () {
 
 		setTexture: function ( texture ) {
 
-			material.uniforms.texture.value = texture;
+			material.uniforms.sampler.value = texture;
 
 			return this;
 
@@ -47,3 +49,5 @@ GPGPU.CopyShader = function () {
 	}
 
 };
+
+export { CopyShader };

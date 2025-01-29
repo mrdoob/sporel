@@ -2,7 +2,9 @@
  * @author mrdoob / http://www.mrdoob.com
  */
 
-GPGPU.MixShader = function () {
+import * as THREE from 'three';
+
+function MixShader() {
 
 	var material = new THREE.ShaderMaterial( {
 
@@ -52,3 +54,5 @@ GPGPU.MixShader = function () {
 	}
 
 };
+
+export { MixShader };

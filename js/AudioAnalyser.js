@@ -1,4 +1,4 @@
-var AudioAnalyser = function ( element ) {
+function AudioAnalyser( element ) {
 
 	var AudioContext = window.AudioContext || window.webkitAudioContext;
 	var context = new AudioContext();
@@ -8,7 +8,7 @@ var AudioAnalyser = function ( element ) {
 	analyser.connect( context.destination );
 
 	var gain = context.createGain();
-	// gain.gain.value = 10;
+	gain.gain.value = 10;
 	gain.connect( analyser );
 
 	var source = context.createMediaElementSource( element );
@@ -34,3 +34,5 @@ var AudioAnalyser = function ( element ) {
 	};
 
 };
+
+export { AudioAnalyser };
