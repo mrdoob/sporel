@@ -49,6 +49,7 @@
 			uniform sampler2D map;
 
 			uniform float size;
+			uniform float pointSize;
 
 			varying vec3 vPosition;
 			varying float opacity;
@@ -62,7 +63,7 @@
 				vPosition = data.xyz;
 				opacity = data.w;
 
-				gl_PointSize = 1.0; // data.w * 10.0 + 1.0;
+				gl_PointSize = pointSize; // 1.0; // data.w * 10.0 + 1.0;
 				gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
 
 			}
@@ -142,6 +143,7 @@
 			function init() {
 
 				renderer = new THREE.WebGLRenderer( { antialias: false, stencil: false } );
+				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				renderer.domElement.addEventListener( 'dblclick', function ( event ) {
 
@@ -157,7 +159,6 @@
 				document.body.appendChild( renderer.domElement );
 
 				camera = new THREE.PerspectiveCamera( 50, window.innerWidth / window.innerHeight, 1, 5000 );
-				camera.position.z = 500;
 
 				scene = new THREE.Scene();
 
@@ -253,6 +254,7 @@
 
 						"map": { type: "t", value: rtTexturePos.texture },
 						"size": { type: "f", value: size },
+						"pointSize": { type: "f", value: window.devicePixelRatio },
 
 						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
 
@@ -277,15 +279,18 @@
 				scene.add( mesh );
 				*/
 
-				rtPost1 = new THREE.WebGLRenderTarget( window.innerWidth, window.innerHeight );
+				var dprWidth = window.innerWidth * window.devicePixelRatio;
+				var dprHeight = window.innerHeight * window.devicePixelRatio;
+
+				rtPost1 = new THREE.WebGLRenderTarget( dprWidth / 1, dprHeight / 1 );
 				rtPost1.texture.minFilter = THREE.LinearFilter;
 				rtPost1.texture.generateMipmaps = false;
 
-				rtPost2 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8 );
+				rtPost2 = new THREE.WebGLRenderTarget( dprWidth / 8, dprHeight / 8 );
 				rtPost2.texture.minFilter = THREE.LinearFilter;
 				rtPost2.texture.generateMipmaps = false;
 
-				rtPost3 = new THREE.WebGLRenderTarget( window.innerWidth / 8, window.innerHeight / 8 );
+				rtPost3 = new THREE.WebGLRenderTarget( dprWidth / 8, dprHeight / 8 );
 				rtPost3.texture.minFilter = THREE.LinearFilter;
 				rtPost3.texture.generateMipmaps = false;
 
@@ -337,9 +342,12 @@
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
 
-				rtPost1.setSize( window.innerWidth, window.innerHeight );
-				rtPost2.setSize( window.innerWidth / 8, window.innerHeight / 8 );
-				rtPost3.setSize( window.innerWidth / 8, window.innerHeight / 8 );
+				var dprWidth = window.innerWidth * window.devicePixelRatio;
+				var dprHeight = window.innerHeight * window.devicePixelRatio;
+
+				rtPost1.setSize( dprWidth / 1, dprHeight / 1 );
+				rtPost2.setSize( dprWidth / 8, dprHeight / 8 );
+				rtPost3.setSize( dprWidth / 8, dprHeight / 8 );
 
 				// meh, renderTargets can't resize
 
