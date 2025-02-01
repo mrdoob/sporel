@@ -44,48 +44,6 @@
 	</head>
 	<body>
 
-		<script id="vs-render" type="x-shader/x-vertex">
-
-			uniform sampler2D map;
-
-			uniform float size;
-			uniform float pointSize;
-
-			varying vec3 vPosition;
-			varying float opacity;
-
-			void main() {
-
-				vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
-
-				vec4 data = texture2D( map, uv );
-
-				vPosition = data.xyz;
-				opacity = data.w;
-
-				gl_PointSize = pointSize; // 1.0; // data.w * 10.0 + 1.0;
-				gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
-
-			}
-
-		</script>
-
-		<script id="fs-render" type="x-shader/x-fragment">
-
-			uniform vec3 pointColor;
-
-			varying vec3 vPosition;
-			varying float opacity;
-
-			void main() {
-
-				if ( opacity <= 0.0 ) discard;
-				gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
-
-			}
-
-		</script>
-
 		<script type="importmap">
 			{
 				"imports": {
@@ -107,7 +65,7 @@
 
 			import { IcosahedronGeometry as LegacyIcosahedronGeometry } from './js/legacy/IcosahedronGeometry.js';
 
-			var audio = document.createElement( 'audio' );
+			const audio = document.createElement( 'audio' );
 			audio.controls = true;
 			audio.style.position = 'absolute';
 			audio.style.left = 'calc(50% - 150px)';
@@ -117,28 +75,28 @@
 			audio.style.transition = 'opacity 1s';
 			document.body.appendChild( audio );
 
-			var source = document.createElement( 'source' );
-			source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
-			source.type = 'audio/ogg';
-			audio.appendChild( source );
+			const sourceOgg = document.createElement( 'source' );
+			sourceOgg.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).ogg';
+			sourceOgg.type = 'audio/ogg';
+			audio.appendChild( sourceOgg );
 
-			var source = document.createElement( 'source' );
-			source.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).mp3';
-			source.type = 'audio/mpeg';
-			audio.appendChild( source );
+			const sourceMp3 = document.createElement( 'source' );
+			sourceMp3.src = 'Rymdlego_-_Sporel_(Frank_Bolero_Ambient_mix).mp3';
+			sourceMp3.type = 'audio/mpeg';
+			audio.appendChild( sourceMp3 );
 
-			var analyser;
+			let analyser;
 
-			var scene, camera, renderer;
-			var particleMaterial;
+			let scene, camera, renderer;
+			let particleMaterial;
 
-			var gpgpu, simulationShader;
-			var copyShader, blurShader, mixShader;
+			let gpgpu, simulationShader;
+			let copyShader, blurShader, mixShader;
 
-			var fboParticles, rtTexturePos, rtTexturePos2;
-			var rtPost1, rtPost2, rtPost3;
+			let fboParticles, rtTexturePos, rtTexturePos2;
+			let rtPost1, rtPost2, rtPost3;
 
-			var count = 0;
+			let count = 0;
 
 			function init() {
 
@@ -147,7 +105,7 @@
 				renderer.setSize( window.innerWidth, window.innerHeight );
 				renderer.domElement.addEventListener( 'dblclick', function ( event ) {
 
-					var element = document.body;
+					const element = document.body;
 
 					if ( element.requestFullscreen ) {
 
@@ -164,12 +122,12 @@
 
 				//
 
-				var size = 1024;
+				const size = 1024;
 
-				var geometry = new THREE.IcosahedronGeometry( 150, 1 );
+				const basicGeometry = new THREE.IcosahedronGeometry( 150, 1 );
 
 				/*
-				var material = new THREE.MeshBasicMaterial( {
+				const material = new THREE.MeshBasicMaterial( {
 					color: 0x00ff00,
 					opacity: 0.1,
 					blending: THREE.AdditiveBlending,
@@ -178,27 +136,27 @@
 				} );
 				*/
 
-				var material = new THREE.MeshBasicMaterial( {
+				const material = new THREE.MeshBasicMaterial( {
 					color: 0x000000
 				} );
 
-				var mesh = new THREE.Mesh( geometry, material );
+				const mesh = new THREE.Mesh( basicGeometry, material );
 				scene.add( mesh );
 
-				var data = new Float32Array( size * size * 4 );
+				const data = new Float32Array( size * size * 4 );
 
 				//
 
-				var geometry = new LegacyIcosahedronGeometry( 150, 1 );
-				var facesLength = geometry.faces.length;
-				var point = new THREE.Vector3();
+				const legacyGeometry = new LegacyIcosahedronGeometry( 150, 1 );
+				const facesLength = legacyGeometry.faces.length;
+				const point = new THREE.Vector3();
 
-				for ( var i = 0, l = data.length; i < l; i += 4 ) {
+				for ( let i = 0, l = data.length; i < l; i += 4 ) {
 
-					var face = geometry.faces[ Math.floor( Math.random() * facesLength ) ];
+					const face = legacyGeometry.faces[ Math.floor( Math.random() * facesLength ) ];
 
-					var vertex1 = geometry.vertices[ face.a ];
-					var vertex2 = geometry.vertices[ Math.random() > 0.5 ? face.b : face.c ];
+					const vertex1 = legacyGeometry.vertices[ face.a ];
+					const vertex2 = legacyGeometry.vertices[ Math.random() > 0.5 ? face.b : face.c ];
 
 					point.subVectors( vertex2, vertex1 );
 					point.multiplyScalar( Math.random() );
@@ -217,7 +175,7 @@
 
 				simulationShader = new SimulationShader();
 
-				var originsTexture = new THREE.DataTexture( data, size, size );
+				const originsTexture = new THREE.DataTexture( data, size, size );
 				originsTexture.type = THREE.FloatType;
 				originsTexture.minFilter = THREE.NearestFilter;
 				originsTexture.magFilter = THREE.NearestFilter;
@@ -236,17 +194,17 @@
 
 				rtTexturePos2 = rtTexturePos.clone();
 
-				var positions = new Float32Array( size * size * 3 );
+				const positions = new Float32Array( size * size * 3 );
 
-				for ( var i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3 ) {
+				for ( let i = 0, j = 0, l = positions.length / 3; i < l; i ++, j += 3 ) {
 
 					positions[ j + 0 ] = ( i % size ) / size;
 					positions[ j + 1 ] = Math.floor( i / size ) / size;
 
 				}
 
-				var geometry = new THREE.BufferGeometry();
-				geometry.setAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+				const pointGeometry = new THREE.BufferGeometry();
+				pointGeometry.setAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
 
 				particleMaterial = new THREE.ShaderMaterial( {
 
@@ -259,8 +217,42 @@
 						"pointColor": { type: "v3", value: new THREE.Vector3( 0.1, 0.25, 0.5 ) }
 
 					},
-					vertexShader: document.getElementById( 'vs-render' ).textContent,
-					fragmentShader: document.getElementById( 'fs-render' ).textContent,
+					vertexShader: `
+						uniform sampler2D map;
+
+						uniform float size;
+						uniform float pointSize;
+
+						varying vec3 vPosition;
+						varying float opacity;
+
+						void main() {
+
+							vec2 uv = position.xy + vec2( 0.5 / size, 0.5 / size );
+
+							vec4 data = texture2D( map, uv );
+
+							vPosition = data.xyz;
+							opacity = data.w;
+
+							gl_PointSize = pointSize; // 1.0; // data.w * 10.0 + 1.0;
+							gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
+
+						}
+					`,
+					fragmentShader: `
+						uniform vec3 pointColor;
+
+						varying vec3 vPosition;
+						varying float opacity;
+
+						void main() {
+
+							if ( opacity <= 0.0 ) discard;
+							gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
+
+						}
+					`,
 					blending: THREE.AdditiveBlending,
 					depthWrite: false,
 					// depthTest: false,
@@ -268,19 +260,19 @@
 
 				} );
 
-				var points = new THREE.Points( geometry, particleMaterial );
+				const points = new THREE.Points( pointGeometry, particleMaterial );
 				scene.add( points );
 
 				/*
-				var mesh = new THREE.Mesh(
+				const mesh = new THREE.Mesh(
 					new THREE.PlaneGeometry( 1000, 1000 ),
 					new THREE.MeshBasicMaterial( { color: 0xffffff, map: rtTexturePos.texture, side: THREE.DoubleSide } )
 				);
 				scene.add( mesh );
 				*/
 
-				var dprWidth = window.innerWidth * window.devicePixelRatio;
-				var dprHeight = window.innerHeight * window.devicePixelRatio;
+				const dprWidth = window.innerWidth * window.devicePixelRatio;
+				const dprHeight = window.innerHeight * window.devicePixelRatio;
 
 				rtPost1 = new THREE.WebGLRenderTarget( dprWidth / 1, dprHeight / 1 );
 				rtPost1.texture.minFilter = THREE.LinearFilter;
@@ -304,9 +296,9 @@
 
 				//
 
-				var timeoutID;
+				let timeoutID;
 
-				var showControls = function ( event ) {
+				const showControls = ( event ) => {
 
 					audio.style.opacity = 0.5;
 					document.body.style.cursor = 'default';
@@ -342,8 +334,8 @@
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
 
-				var dprWidth = window.innerWidth * window.devicePixelRatio;
-				var dprHeight = window.innerHeight * window.devicePixelRatio;
+				const dprWidth = window.innerWidth * window.devicePixelRatio;
+				const dprHeight = window.innerHeight * window.devicePixelRatio;
 
 				rtPost1.setSize( dprWidth / 1, dprHeight / 1 );
 				rtPost2.setSize( dprWidth / 8, dprHeight / 8 );
@@ -370,10 +362,10 @@
 
 				analyser.update();
 
-				var timer = audio.currentTime;
+				const timer = audio.currentTime;
 
-				var easing = 1 - Math.pow( 2, - 10 * ( timer / 360 ) );
-				var distance = 4000 * easing - 4350;
+				const easing = 1 - Math.pow( 2, - 10 * ( timer / 360 ) );
+				const distance = 4000 * easing - 4350;
 
 				camera.position.x = - Math.cos( timer * 0.1 ) * distance;
 				camera.position.z = Math.sin( timer * 0.1 ) * distance;
@@ -381,7 +373,7 @@
 
 				particleMaterial.uniforms.pointColor.value.x = analyser.getFrequency()[ 30 ] / 256;
 
-				var opacity = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
+				let opacity = Math.pow( analyser.getFrequency()[ 4 ] / 768, 2 );
 
 				if ( analyser.getFrequency()[ 30 ] > 64 ) opacity *= 2;
 				if ( analyser.getFrequency()[ 73 ] > 16 ) opacity *= 6;
@@ -408,7 +400,7 @@
 				gpgpu.render( scene, camera, rtPost1 );
 				gpgpu.pass( copyShader.setTexture( rtPost1.texture ), rtPost2 );
 
-				for ( var i = 0; i < 16; i ++ ) {
+				for ( let i = 0; i < 16; i ++ ) {
 
 					gpgpu.pass( blurShader.setTexture( rtPost2.texture ).setDelta( 1 / rtPost2.width,  0 ), rtPost3 );
 					gpgpu.pass( blurShader.setTexture( rtPost3.texture ).setDelta( 0, 1 / rtPost2.height ), rtPost2 );
@@ -421,12 +413,12 @@
 
 			//
 
-			var info = document.createElement( 'div' );
+			const info = document.createElement( 'div' );
 			info.id = 'info';
 			info.innerHTML = '"Sporel" by Mr.doob<br /><span style="font-size:18px">music: <a href="https://soundcloud.com/frank-bolero/sporel-mix" target="_blank">Rymdlego - Sporel (Frank Bolero Ambient mix)</a></span><hr />';
 			document.body.appendChild( info );
 
-			var start = document.createElement( 'span' );
+			const start = document.createElement( 'span' );
 			start.textContent = 'START';
 			start.style.color = '#ffff22';
 			start.style.cursor = 'pointer';
