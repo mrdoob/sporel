@@ -224,7 +224,7 @@
 						uniform float pointSize;
 
 						varying vec3 vPosition;
-						varying float opacity;
+						varying float vOpacity;
 
 						void main() {
 
@@ -233,7 +233,7 @@
 							vec4 data = texture2D( map, uv );
 
 							vPosition = data.xyz;
-							opacity = data.w;
+							vOpacity = data.w;
 
 							gl_PointSize = pointSize; // 1.0; // data.w * 10.0 + 1.0;
 							gl_Position = projectionMatrix * modelViewMatrix * vec4( vPosition, 1.0 );
@@ -244,12 +244,12 @@
 						uniform vec3 pointColor;
 
 						varying vec3 vPosition;
-						varying float opacity;
+						varying float vOpacity;
 
 						void main() {
 
-							if ( opacity <= 0.0 ) discard;
-							gl_FragColor = vec4( pointColor + vPosition * 0.005, opacity );
+							if ( vOpacity <= 0.0 ) discard;
+							gl_FragColor = vec4( pointColor + vPosition * 0.005, vOpacity );
 
 						}
 					`,
